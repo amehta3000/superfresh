@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SUPERFRESH — an independent studio</title>
+<meta name="description" content="SUPERFRESH is an independent studio for music, design, software and experiments. Los Angeles.">
+<link rel="canonical" href="https://superfresh.la/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://superfresh.la/">
+<meta property="og:title" content="SUPERFRESH">
+<meta property="og:description" content="An independent studio for music, design, software and experiments. Los Angeles.">
+<meta name="twitter:card" content="summary_large_image">
+
+<meta name="theme-color" content="#0a0a0a" id="theme-color">
+<script>
+  // applied before first paint so the page never flashes the wrong theme
+  try{
+    var t = localStorage.getItem('superfresh-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a0a0a'/%3E%3Ctext x='50' y='50' font-family='Helvetica,Arial,sans-serif' font-size='62' font-weight='700' fill='%23e8ff4f' text-anchor='middle' dominant-baseline='central'%3ES%3C/text%3E%3C/svg%3E">
+
+<style>
+  :root{
+    --pad:clamp(20px, 5vw, 64px);
+    --font:'Helvetica Neue', Helvetica, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    --mono:ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+    /* dark is the default look */
+    --bg:#0a0a0a;
+    --fg:#f2f2f0;
+    --muted:#8b8b86;
+    --dim:#5c5c58;
+    --line:#232320;
+    --accent:#e8ff4f;
+    --on-accent:#0a0a0a;
+  }
+
+  /* light values, shared by the system default and the explicit toggle */
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme]){
+      --bg:#f4f3ef;
+      --fg:#0e0e0c;
+      --muted:#6f6f68;
+      --dim:#a9a9a0;
+      --line:#dcdad1;
+      --accent:#dcf500;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f3ef;
+    --fg:#0e0e0c;
+    --muted:#6f6f68;
+    --dim:#a9a9a0;
+    --line:#dcdad1;
+    --accent:#dcf500;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:var(--font);
+    font-size:16px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+
+  .wrap{
+    max-width:1400px;
+    margin:0 auto;
+    padding:var(--pad);
+    min-height:100vh;
+    min-height:100svh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ---------- masthead ---------- */
+  header{padding-top:clamp(8px,4vh,48px)}
+
+  .rule{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:16px;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    padding-bottom:14px;
+    border-bottom:1px solid var(--line);
+  }
+  .rule .dot{color:var(--accent)}
+  .rule-right{display:flex;align-items:baseline;gap:18px}
+
+  .theme-toggle{
+    -webkit-appearance:none;appearance:none;
+    background:transparent;
+    border:1px solid var(--line);
+    border-radius:999px;
+    color:var(--muted);
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    padding:5px 11px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    line-height:1;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .theme-toggle:hover, .theme-toggle:focus-visible{
+    color:var(--fg);
+    border-color:var(--fg);
+    outline:none;
+  }
+  .theme-toggle .bulb{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--accent);
+    flex:none;
+  }
+  /* label swaps with the active theme */
+  .theme-toggle .t-dark{display:none}
+  :root[data-theme="light"] .theme-toggle .t-dark{display:inline}
+  :root[data-theme="light"] .theme-toggle .t-light{display:none}
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme]) .theme-toggle .t-dark{display:inline}
+    :root:not([data-theme]) .theme-toggle .t-light{display:none}
+  }
+
+  /* wordmark is an SVG so it always fits edge-to-edge, never wraps */
+  .wordmark{margin:clamp(24px,6vh,64px) 0 0}
+  .wordmark svg{display:block;width:100%;height:auto}
+  .wordmark text{
+    font-family:var(--font);
+    font-weight:800;
+    font-size:140px;
+    letter-spacing:-.04em;
+    fill:var(--fg);
+  }
+  .visually-hidden{
+    position:absolute;width:1px;height:1px;margin:-1px;
+    padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+  }
+
+  .statement{
+    margin:clamp(20px,4vh,40px) 0 0;
+    max-width:34ch;
+    font-size:clamp(19px, 2.6vw, 30px);
+    line-height:1.25;
+    letter-spacing:-.02em;
+    font-weight:400;
+    text-wrap:balance;
+  }
+  .statement .soft{color:var(--muted)}
+
+  .place{
+    margin-top:14px;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+
+  /* ---------- index ---------- */
+  .section-label{
+    margin:clamp(48px,9vh,110px) 0 0;
+    padding-bottom:12px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+
+  /* hairlines live on the items, so a partial last row stays clean */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(280px,1fr));
+    gap:0;
+    border-left:1px solid var(--line);
+  }
+
+  .item{
+    position:relative;
+    background:transparent;
+    border-right:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    padding:26px 24px 22px;
+    min-height:clamp(140px, 24vw, 210px);
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    gap:26px;
+    transition:background .18s ease, color .18s ease;
+    isolation:isolate;
+  }
+  .item .num{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.12em;
+    color:var(--muted);
+    transition:color .18s ease;
+  }
+  .item h2{
+    margin:0;
+    font-size:clamp(22px,2.4vw,30px);
+    line-height:1.05;
+    letter-spacing:-.03em;
+    font-weight:700;
+    text-transform:uppercase;
+  }
+  .item .kind{
+    margin-top:8px;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--muted);
+    transition:color .18s ease;
+  }
+  .item .go{
+    position:absolute;
+    top:24px;
+    right:22px;
+    font-size:16px;
+    line-height:1;
+    color:var(--muted);
+    transition:transform .18s ease, color .18s ease;
+  }
+
+  a.item:hover, a.item:focus-visible{
+    background:var(--accent);
+    color:var(--on-accent);
+    outline:none;
+  }
+  a.item:hover .num, a.item:hover .kind, a.item:hover .go,
+  a.item:focus-visible .num, a.item:focus-visible .kind, a.item:focus-visible .go{color:var(--on-accent)}
+  a.item:hover .go, a.item:focus-visible .go{transform:translate(3px,-3px)}
+
+  .item.soon{color:var(--muted)}
+  .item.soon h2{color:var(--dim)}
+
+  /* ---------- footer ---------- */
+  footer{
+    margin-top:auto;
+    padding-top:clamp(40px,8vh,90px);
+  }
+  .foot-inner{
+    border-top:1px solid var(--line);
+    padding-top:16px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px 28px;
+    justify-content:space-between;
+    align-items:baseline;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .foot-inner a{border-bottom:1px solid transparent;transition:color .15s ease,border-color .15s ease}
+  .foot-inner a:hover{color:var(--accent);border-color:var(--accent)}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="rule">
+      <span>Superfresh<span class="dot">.</span>la</span>
+      <span class="rule-right">
+        <span>Est. Los Angeles</span>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">
+          <span class="bulb" aria-hidden="true"></span>
+          <span class="t-light">Dark</span>
+          <span class="t-dark">Light</span>
+        </button>
+      </span>
+    </div>
+
+    <h1 class="wordmark">
+      <span class="visually-hidden">Superfresh</span>
+      <svg viewBox="0 0 1000 104" role="img" aria-hidden="true" focusable="false">
+        <text x="0" y="100" textLength="1000" lengthAdjust="spacing">SUPERFRESH</text>
+      </svg>
+    </h1>
+
+    <p class="statement">
+      An independent studio for music, design, software
+      <span class="soft">and experiments.</span>
+    </p>
+    <p class="place">Los Angeles, CA</p>
+  </header>
+
+  <main>
+    <div class="section-label">
+      <span>Output</span>
+      <span>Ongoing</span>
+    </div>
+
+    <div class="grid">
+
+      <a class="item" href="https://parttimechiller.com">
+        <span class="num">01</span>
+        <span class="go">↗</span>
+        <span>
+          <h2>Part Time Chiller</h2>
+          <span class="kind">Artist / Music</span>
+        </span>
+      </a>
+
+      <a class="item" href="https://1toke.co">
+        <span class="num">02</span>
+        <span class="go">↗</span>
+        <span>
+          <h2>1Toke</h2>
+          <span class="kind">Mobile App</span>
+        </span>
+      </a>
+
+      <a class="item" href="https://sadubas.com">
+        <span class="num">03</span>
+        <span class="go">↗</span>
+        <span>
+          <h2>Sadubas</h2>
+          <span class="kind">Music / Performance</span>
+        </span>
+      </a>
+
+      <a class="item" href="https://amehta3000.github.io/superflatpixel/">
+        <span class="num">04</span>
+        <span class="go">↗</span>
+        <span>
+          <h2>SuperFlat</h2>
+          <span class="kind">Creative Software</span>
+        </span>
+      </a>
+
+      <!-- TODO: swap href="#" for the real destination -->
+      <a class="item" href="#">
+        <span class="num">05</span>
+        <span class="go">↗</span>
+        <span>
+          <h2>Studio Visualizer</h2>
+          <span class="kind">Creative Software</span>
+        </span>
+      </a>
+
+      <div class="item soon">
+        <span class="num">06</span>
+        <span>
+          <h2>Type</h2>
+          <span class="kind">Typefaces — Soon</span>
+        </span>
+      </div>
+
+      <div class="item soon">
+        <span class="num">07</span>
+        <span>
+          <h2>Goods</h2>
+          <span class="kind">Merch / Objects — Soon</span>
+        </span>
+      </div>
+
+      <div class="item soon">
+        <span class="num">08</span>
+        <span>
+          <h2>Lab</h2>
+          <span class="kind">Experiments — Soon</span>
+        </span>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="foot-inner">
+      <span>&copy; <span id="yr">2026</span> Superfresh</span>
+      <span><a href="mailto:hello@superfresh.la">hello@superfresh.la</a></span>
+      <span>All rights reserved</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+(function(){
+  var root = document.documentElement;
+  var btn = document.getElementById('theme-toggle');
+  var meta = document.getElementById('theme-color');
+  var systemLight = window.matchMedia('(prefers-color-scheme: light)');
+
+  function active(){
+    var set = root.getAttribute('data-theme');
+    return set ? set : (systemLight.matches ? 'light' : 'dark');
+  }
+
+  function paint(){
+    var mode = active();
+    meta.setAttribute('content', mode === 'light' ? '#f4f3ef' : '#0a0a0a');
+    // keep the visible word inside the accessible name (WCAG label-in-name)
+    btn.setAttribute('aria-label', mode === 'light'
+      ? 'Light theme. Switch to dark.'
+      : 'Dark theme. Switch to light.');
+  }
+
+  btn.addEventListener('click', function(){
+    var next = active() === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try{ localStorage.setItem('superfresh-theme', next); }catch(e){}
+    paint();
+  });
+
+  // follow the system while the visitor hasn't chosen one
+  systemLight.addEventListener('change', function(){
+    if (!root.hasAttribute('data-theme')) paint();
+  });
+
+  paint();
+})();
+</script>
+</body>
+</html>
