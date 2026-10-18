@@ -605,20 +605,32 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     for (var i = 0; i < L.chars.length; i++) ctx.fillText(L.chars[i].c, L.chars[i].x, L.chars[i].y);
   }
 
-  function sample(L, step){
+  // one point per step x step cell: cells whose centre is inked, or with
+  // cover, cells holding any ink at all (so every edge sliver is owned)
+  function sample(L, step, cover){
     var c = document.createElement('canvas');
     c.width = Math.ceil(L.w);
     c.height = Math.ceil(L.h);
     var ctx = c.getContext('2d', {willReadFrequently:true});
     draw(ctx, L);
     var data = ctx.getImageData(0, 0, c.width, c.height).data;
-    var pts = [];
-    for (var y = step / 2 | 0; y < c.height; y += step){
-      for (var x = step / 2 | 0; x < c.width; x += step){
-        if (data[(y * c.width + x) * 4 + 3] > 128) pts.push({x:x, y:y});
+    var pts = [], o = step / 2 | 0;
+    for (var y = o; y < c.height; y += step){
+      for (var x = o; x < c.width; x += step){
+        if (cover ? inked(data, c.width, c.height, x - o, y - o, step)
+                  : data[(y * c.width + x) * 4 + 3] > 128) pts.push({x:x, y:y});
       }
     }
     return pts;
+  }
+
+  function inked(data, w, h, x0, y0, size){
+    for (var y = y0; y < y0 + size && y < h; y++){
+      for (var x = x0; x < x0 + size && x < w; x++){
+        if (data[(y * w + x) * 4 + 3] > 8) return true;
+      }
+    }
+    return false;
   }
 
   // equal-length point lists, paired left to right so the word flows across
@@ -637,6 +649,7 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   function clamp(u){ return u < 0 ? 0 : u > 1 ? 1 : u; }
 
   function morph(next){
+    endSim();
     busy = true;
     btn.setAttribute('aria-busy', 'true');
     return load(next).then(function(ok){
@@ -658,18 +671,14 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     });
   }
 
-  function animate(next){
+  // size the overlay canvas to a W x H word box plus a margin, so particles
+  // can leave the box without clipping; drawing coordinates stay word-relative
+  function stage(W, H){
     if (!canvas){
       canvas = document.createElement('canvas');
       canvas.setAttribute('aria-hidden', 'true');
       h1.appendChild(canvas);
     }
-    var A = layout();
-    apply(next);
-    var B = layout();
-
-    var W = A.w, H = Math.max(A.h, B.h);
-    // margin so drifting particles can leave the word's box without clipping
     var pad = Math.round(H * .5);
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.ceil((W + pad * 2) * dpr);
@@ -680,6 +689,33 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     var ctx = canvas.getContext('2d');
     var base = [dpr, 0, 0, dpr, pad * dpr, pad * dpr];
     ctx.setTransform.apply(ctx, base);
+    return {
+      ctx:ctx,
+      // wipe the whole buffer; a CSS-pixel rect can leave a fractional last row
+      wipe:function(){
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform.apply(ctx, base);
+      }
+    };
+  }
+
+  // hand back to the SVG and collapse the canvas so its margin never widens the page
+  function unstage(){
+    svg.style.opacity = '';
+    canvas.width = canvas.height = 0;
+    canvas.style.width = canvas.style.height = '0';
+  }
+
+  function stepFor(W){ return Math.max(2, Math.round(W / 300)); }
+
+  function animate(next){
+    var A = layout();
+    apply(next);
+    var B = layout();
+
+    var W = A.w, H = Math.max(A.h, B.h);
+    var st = stage(W, H), ctx = st.ctx;
     var color = getComputedStyle(text).fill;
     ctx.fillStyle = color;
     draw(ctx, A);
@@ -691,7 +727,7 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     h1.style.transition = 'height ' + DURATION * .8 + 'ms cubic-bezier(.65,0,.35,1)';
     h1.style.height = B.h + 'px';
 
-    var step = Math.max(2, Math.round(W / 300));
+    var step = stepFor(W);
     var dot = step * .85;
     var lists = pair(sample(A, step), sample(B, step));
     var from = lists[0], to = lists[1];
@@ -708,15 +744,9 @@ document.getElementById('yr').textContent = new Date().getFullYear();
 
     return new Promise(function(resolve){
       var start = performance.now();
-      // wipe the whole buffer; a CSS-pixel rect can leave a fractional last row
-      function wipe(){
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.setTransform.apply(ctx, base);
-      }
       function frame(now){
         var t = clamp((now - start) / DURATION);
-        wipe();
+        st.wipe();
         ctx.fillStyle = color;
 
         var outA = 1 - ease(clamp(t / .18));
@@ -737,18 +767,122 @@ document.getElementById('yr').textContent = new Date().getFullYear();
         ctx.globalAlpha = 1;
 
         if (t < 1){ requestAnimationFrame(frame); return; }
-        svg.style.opacity = '';
         h1.style.transition = '';
         h1.style.height = '';
-        // collapse the canvas so its margin never widens the page
-        canvas.width = canvas.height = 0;
-        canvas.style.width = canvas.style.height = '0';
+        unstage();
         current = next;
         resolve();
       }
       requestAnimationFrame(frame);
     });
   }
+
+  // Hover: under the pointer the word turns to particles. The pointer shoves
+  // and heats them; hot particles jitter (Brownian kicks) and their springs
+  // slacken, so they wander. As they cool the springs pull them home and
+  // each one melts back into the solid word.
+  var sim = null;
+
+  function startSim(){
+    var L = layout();
+    var st = stage(L.w, L.h);
+    var step = stepFor(L.w);
+    sim = {
+      L:L,
+      st:st,
+      color:getComputedStyle(text).fill,
+      step:step,
+      dot:step * .85,
+      reach:Math.max(48, L.h * .55),
+      ps:sample(L, step, true).map(function(p){
+        return {hx:p.x, hy:p.y, x:p.x, y:p.y, vx:0, vy:0, heat:0};
+      }),
+      mx:0, my:0, pvx:0, pvy:0,
+      inside:false
+    };
+    st.ctx.fillStyle = sim.color;
+    draw(st.ctx, L);
+    svg.style.opacity = '0';
+    sim.raf = requestAnimationFrame(simFrame);
+  }
+
+  function endSim(){
+    if (!sim) return;
+    cancelAnimationFrame(sim.raf);
+    sim = null;
+    unstage();
+  }
+
+  function simFrame(){
+    var s = sim, ps = s.ps, ctx = s.st.ctx;
+    var R = s.reach, R2 = R * R;
+    var unsettled = 0;
+
+    for (var i = 0; i < ps.length; i++){
+      var p = ps[i];
+      if (s.inside){
+        var dx = p.x - s.mx, dy = p.y - s.my, d2 = dx * dx + dy * dy;
+        if (d2 < R2){
+          var d = Math.sqrt(d2) || 1, f = 1 - d / R;
+          // radial shove plus a share of the pointer's own motion
+          p.vx += dx / d * f * f * 5 + s.pvx * f * .2;
+          p.vy += dy / d * f * f * 5 + s.pvy * f * .2;
+          p.heat = Math.min(1, p.heat + f * .25);
+        }
+      }
+      if (p.heat > .01){
+        p.vx += (Math.random() - .5) * p.heat * 2.4;
+        p.vy += (Math.random() - .5) * p.heat * 2.4;
+        p.heat *= .96;
+      } else {
+        p.heat = 0;
+      }
+      var k = .025 * (1 - p.heat * .85);
+      p.vx = (p.vx + (p.hx - p.x) * k) * .9;
+      p.vy = (p.vy + (p.hy - p.y) * k) * .9;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.loose = p.heat > 0 || Math.abs(p.x - p.hx) + Math.abs(p.y - p.hy) > .5;
+      if (p.loose) unsettled++;
+    }
+    s.pvx *= .6;
+    s.pvy *= .6;
+
+    if (!s.inside && !unsettled){ endSim(); return; }
+
+    // the solid word, with a hole cut wherever a particle has wandered off,
+    // and the wandering particles drawn on top: undisturbed letters keep
+    // their exact outlines
+    s.st.wipe();
+    ctx.fillStyle = s.color;
+    draw(ctx, s.L);
+    var cell = s.step, o = cell / 2 | 0, dot = s.dot, half = dot / 2, j;
+    ctx.globalCompositeOperation = 'destination-out';
+    for (j = 0; j < ps.length; j++) if (ps[j].loose) ctx.fillRect(ps[j].hx - o, ps[j].hy - o, cell, cell);
+    ctx.globalCompositeOperation = 'source-over';
+    for (j = 0; j < ps.length; j++) if (ps[j].loose) ctx.fillRect(ps[j].x - half, ps[j].y - half, dot, dot);
+
+    s.raf = requestAnimationFrame(simFrame);
+  }
+
+  h1.addEventListener('pointermove', function(e){
+    if (busy || reduceMotion.matches) return;
+    if (!sim) startSim();
+    var r = svg.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+    if (sim.inside){
+      sim.pvx = Math.max(-40, Math.min(40, x - sim.mx));
+      sim.pvy = Math.max(-40, Math.min(40, y - sim.my));
+    }
+    sim.mx = x;
+    sim.my = y;
+    sim.inside = true;
+  });
+  function release(){ if (sim) sim.inside = false; }
+  h1.addEventListener('pointerleave', release);
+  h1.addEventListener('pointercancel', release);
+  // the particles' home positions belong to the old layout
+  window.addEventListener('resize', endSim);
 
   btn.addEventListener('click', function(){
     if (!busy) morph(pick());
