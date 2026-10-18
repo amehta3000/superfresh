@@ -6,6 +6,10 @@
 <title>SUPERFRESH — an independent studio</title>
 <meta name="description" content="SUPERFRESH is an independent studio for music, design, software and experiments. Los Angeles.">
 <link rel="canonical" href="https://superfresh.la/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- alternate wordmark faces; the files only download when a face is first shown -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Anton&family=Archivo+Black&family=Bebas+Neue&family=Big+Shoulders+Display:wght@900&family=Bodoni+Moda:wght@900&family=Bricolage+Grotesque:wght@800&family=Cormorant+Garamond:wght@700&family=DM+Serif+Display&family=Fraunces:wght@900&family=Instrument+Serif&family=Playfair+Display:wght@900&family=Rubik+Mono+One&family=Space+Grotesk:wght@700&family=Syne:wght@800&family=Unbounded:wght@900&family=Yeseva+One&display=swap">
 
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://superfresh.la/">
@@ -101,7 +105,9 @@
     border-bottom:1px solid var(--line);
   }
   .rule .dot{color:var(--accent)}
-  .rule-right{display:flex;align-items:baseline;gap:18px}
+  .rule-right{display:flex;align-items:baseline;gap:18px;white-space:nowrap}
+  /* room for the header controls on phones */
+  @media (max-width:560px){ .rule .est{display:none} }
 
   .theme-toggle{
     -webkit-appearance:none;appearance:none;
@@ -126,6 +132,26 @@
     border-color:var(--fg);
     outline:none;
   }
+  .type-shuffle{
+    -webkit-appearance:none;appearance:none;
+    background:transparent;
+    border:0;
+    border-bottom:1px solid transparent;
+    padding:0;
+    color:var(--muted);
+    font:inherit;
+    letter-spacing:inherit;
+    text-transform:inherit;
+    cursor:pointer;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .type-shuffle:hover, .type-shuffle:focus-visible{
+    color:var(--fg);
+    border-color:var(--accent);
+    outline:none;
+  }
+  .type-shuffle[aria-busy="true"]{cursor:progress}
+
   .theme-toggle .bulb{
     width:7px;height:7px;border-radius:50%;
     background:var(--accent);
@@ -141,8 +167,9 @@
   }
 
   /* wordmark is an SVG so it always fits edge-to-edge, never wraps */
-  .wordmark{margin:clamp(24px,6vh,64px) 0 0}
+  .wordmark{position:relative;margin:clamp(24px,6vh,64px) 0 0}
   .wordmark svg{display:block;width:100%;height:auto}
+  .wordmark canvas{position:absolute;top:0;left:0;pointer-events:none}
   .wordmark text{
     font-family:var(--font);
     font-weight:800;
@@ -291,7 +318,8 @@
     <div class="rule">
       <span>Superfresh<span class="dot">.</span>la</span>
       <span class="rule-right">
-        <span>Est. Los Angeles</span>
+        <span class="est">Est. Los Angeles</span>
+        <button class="type-shuffle" id="type-shuffle" type="button" title="Set in Helvetica">New type</button>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">
           <span class="bulb" aria-hidden="true"></span>
           <span class="t-light">Dark</span>
@@ -467,6 +495,270 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   });
 
   paint();
+})();
+
+// Wordmark type shuffle: SUPERFRESH dissolves into particles that
+// regather as the same word in another typeface.
+(function(){
+  // set to 20000 to also cycle on its own every 20 seconds
+  var AUTO_MS = 0;
+  var DURATION = 2000;
+
+  var FONTS = [
+    // sans
+    {family:'Archivo Black', weight:400},
+    {family:'Anton', weight:400},
+    {family:'Bebas Neue', weight:400},
+    {family:'Big Shoulders Display', weight:900},
+    {family:'Bricolage Grotesque', weight:800},
+    {family:'Rubik Mono One', weight:400},
+    {family:'Space Grotesk', weight:700},
+    {family:'Syne', weight:800},
+    {family:'Unbounded', weight:900},
+    // serif
+    {family:'Abril Fatface', weight:400},
+    {family:'Bodoni Moda', weight:900},
+    {family:'Cormorant Garamond', weight:700},
+    {family:'DM Serif Display', weight:400},
+    {family:'Fraunces', weight:900},
+    {family:'Instrument Serif', weight:400},
+    {family:'Playfair Display', weight:900},
+    {family:'Yeseva One', weight:400}
+  ];
+  var HOUSE = null; // the default Helvetica set by the stylesheet
+
+  var h1 = document.querySelector('.wordmark');
+  var svg = h1.querySelector('svg');
+  var text = svg.querySelector('text');
+  var btn = document.getElementById('type-shuffle');
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var probe = document.createElement('canvas').getContext('2d');
+  var canvas = null;
+  var current = HOUSE;
+  var bag = [];
+  var busy = false;
+
+  // deal faces from a shuffled bag so none repeats until all have shown
+  function pick(){
+    if (!bag.length){
+      bag = FONTS.concat([HOUSE]);
+      for (var i = bag.length - 1; i > 0; i--){
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+      }
+    }
+    var f = bag.pop();
+    return f === current ? pick() : f;
+  }
+
+  function nameOf(f){ return f ? f.family : 'Helvetica'; }
+
+  function load(f){
+    if (!f) return Promise.resolve(true);
+    return document.fonts.load(f.weight + ' 100px "' + f.family + '"')
+      .then(function(list){ return list.length > 0; }, function(){ return false; });
+  }
+
+  // size each face so the word spans the frame; condensed faces stop
+  // growing at 1.5x the house cap height and take up the rest in spacing
+  function apply(f){
+    if (!f){
+      svg.setAttribute('viewBox', '0 0 1000 104');
+      text.setAttribute('y', '100');
+      text.removeAttribute('style');
+      return;
+    }
+    probe.font = f.weight + ' 100px "' + f.family + '"';
+    var m = probe.measureText('SUPERFRESH');
+    var size = Math.min(960 / m.width * 100, 150 / m.actualBoundingBoxAscent * 100);
+    var asc = m.actualBoundingBoxAscent * size / 100;
+    var desc = Math.max(m.actualBoundingBoxDescent * size / 100, 4);
+    svg.setAttribute('viewBox', '0 0 1000 ' + Math.ceil(asc + desc + 2));
+    text.setAttribute('y', (asc + 1).toFixed(1));
+    text.style.fontFamily = '"' + f.family + '"';
+    text.style.fontWeight = f.weight;
+    text.style.fontSize = size.toFixed(2) + 'px';
+    text.style.letterSpacing = '0';
+  }
+
+  // where the SVG actually put each glyph, in CSS pixels
+  function layout(){
+    var box = svg.getBoundingClientRect();
+    var k = box.width / 1000;
+    var cs = getComputedStyle(text);
+    var chars = [];
+    for (var i = 0; i < text.getNumberOfChars(); i++){
+      var p = text.getStartPositionOfChar(i);
+      chars.push({c:text.textContent.charAt(i), x:p.x * k, y:p.y * k});
+    }
+    return {
+      w:box.width,
+      h:box.height,
+      font:cs.fontWeight + ' ' + (parseFloat(cs.fontSize) * k) + 'px ' + cs.fontFamily,
+      chars:chars
+    };
+  }
+
+  function draw(ctx, L){
+    ctx.font = L.font;
+    ctx.textBaseline = 'alphabetic';
+    for (var i = 0; i < L.chars.length; i++) ctx.fillText(L.chars[i].c, L.chars[i].x, L.chars[i].y);
+  }
+
+  function sample(L, step){
+    var c = document.createElement('canvas');
+    c.width = Math.ceil(L.w);
+    c.height = Math.ceil(L.h);
+    var ctx = c.getContext('2d', {willReadFrequently:true});
+    draw(ctx, L);
+    var data = ctx.getImageData(0, 0, c.width, c.height).data;
+    var pts = [];
+    for (var y = step / 2 | 0; y < c.height; y += step){
+      for (var x = step / 2 | 0; x < c.width; x += step){
+        if (data[(y * c.width + x) * 4 + 3] > 128) pts.push({x:x, y:y});
+      }
+    }
+    return pts;
+  }
+
+  // equal-length point lists, paired left to right so the word flows across
+  function pair(a, b){
+    var n = Math.max(a.length, b.length);
+    function fill(list){
+      list = list.slice();
+      var base = list.length;
+      while (list.length < n) list.push(list[Math.floor(Math.random() * base)]);
+      return list.sort(function(p, q){ return p.x - q.x; });
+    }
+    return [fill(a), fill(b)];
+  }
+
+  function ease(u){ return u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; }
+  function clamp(u){ return u < 0 ? 0 : u > 1 ? 1 : u; }
+
+  function morph(next){
+    busy = true;
+    btn.setAttribute('aria-busy', 'true');
+    return load(next).then(function(ok){
+      if (!ok){
+        // face failed to load: drop it and keep the current one
+        FONTS = FONTS.filter(function(f){ return f !== next; });
+        return;
+      }
+      if (reduceMotion.matches){
+        apply(next);
+        current = next;
+        return;
+      }
+      return animate(next);
+    }).then(function(){
+      busy = false;
+      btn.removeAttribute('aria-busy');
+      btn.title = 'Set in ' + nameOf(current);
+    });
+  }
+
+  function animate(next){
+    if (!canvas){
+      canvas = document.createElement('canvas');
+      canvas.setAttribute('aria-hidden', 'true');
+      h1.appendChild(canvas);
+    }
+    var A = layout();
+    apply(next);
+    var B = layout();
+
+    var W = A.w, H = Math.max(A.h, B.h);
+    // margin so drifting particles can leave the word's box without clipping
+    var pad = Math.round(H * .5);
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.ceil((W + pad * 2) * dpr);
+    canvas.height = Math.ceil((H + pad * 2) * dpr);
+    canvas.style.top = canvas.style.left = -pad + 'px';
+    canvas.style.width = W + pad * 2 + 'px';
+    canvas.style.height = H + pad * 2 + 'px';
+    var ctx = canvas.getContext('2d');
+    var base = [dpr, 0, 0, dpr, pad * dpr, pad * dpr];
+    ctx.setTransform.apply(ctx, base);
+    var color = getComputedStyle(text).fill;
+    ctx.fillStyle = color;
+    draw(ctx, A);
+
+    // hand over from the SVG to the canvas, and ease the page into the new height
+    svg.style.opacity = '0';
+    h1.style.height = A.h + 'px';
+    h1.getBoundingClientRect();
+    h1.style.transition = 'height ' + DURATION * .8 + 'ms cubic-bezier(.65,0,.35,1)';
+    h1.style.height = B.h + 'px';
+
+    var step = Math.max(2, Math.round(W / 300));
+    var dot = step * .85;
+    var lists = pair(sample(A, step), sample(B, step));
+    var from = lists[0], to = lists[1];
+    var drift = H * .45;
+    var ps = from.map(function(a, i){
+      var b = to[i];
+      return {
+        ax:a.x, ay:a.y, bx:b.x, by:b.y,
+        delay:a.x / W * .2 + Math.random() * .05,
+        dx:(Math.random() - .5) * 2 * drift,
+        dy:(Math.random() - .5) * 2 * drift
+      };
+    });
+
+    return new Promise(function(resolve){
+      var start = performance.now();
+      // wipe the whole buffer; a CSS-pixel rect can leave a fractional last row
+      function wipe(){
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform.apply(ctx, base);
+      }
+      function frame(now){
+        var t = clamp((now - start) / DURATION);
+        wipe();
+        ctx.fillStyle = color;
+
+        var outA = 1 - ease(clamp(t / .18));
+        var inB = ease(clamp((t - .8) / .2));
+        if (outA > 0){ ctx.globalAlpha = outA; draw(ctx, A); }
+        if (inB > 0){ ctx.globalAlpha = inB; draw(ctx, B); }
+
+        ctx.globalAlpha = clamp(t / .08) * (1 - inB);
+        for (var i = 0; i < ps.length; i++){
+          var p = ps[i];
+          var e = ease(clamp((t - p.delay) / .6));
+          var arc = Math.sin(Math.PI * e);
+          ctx.fillRect(
+            p.ax + (p.bx - p.ax) * e + p.dx * arc - dot / 2,
+            p.ay + (p.by - p.ay) * e + p.dy * arc - dot / 2,
+            dot, dot);
+        }
+        ctx.globalAlpha = 1;
+
+        if (t < 1){ requestAnimationFrame(frame); return; }
+        svg.style.opacity = '';
+        h1.style.transition = '';
+        h1.style.height = '';
+        // collapse the canvas so its margin never widens the page
+        canvas.width = canvas.height = 0;
+        canvas.style.width = canvas.style.height = '0';
+        current = next;
+        resolve();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  btn.addEventListener('click', function(){
+    if (!busy) morph(pick());
+  });
+
+  if (AUTO_MS){
+    setInterval(function(){
+      if (!busy && !document.hidden) morph(pick());
+    }, AUTO_MS);
+  }
 })();
 </script>
 </body>
