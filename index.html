@@ -24,6 +24,8 @@
     var t = localStorage.getItem('superfresh-theme');
     if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
   }catch(e){}
+  // the wordmark waits for its randomly chosen face instead of flashing Helvetica first
+  document.documentElement.className += ' type-pending';
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a0a0a'/%3E%3Ctext x='50' y='50' font-family='Helvetica,Arial,sans-serif' font-size='62' font-weight='700' fill='%23e8ff4f' text-anchor='middle' dominant-baseline='central'%3ES%3C/text%3E%3C/svg%3E">
 
@@ -108,6 +110,12 @@
   .rule-right{display:flex;align-items:baseline;gap:18px;white-space:nowrap}
   /* room for the header controls on phones */
   @media (max-width:560px){ .rule .est{display:none} }
+  /* on the narrowest phones the theme toggle keeps only its dot */
+  @media (max-width:400px){
+    .rule-right{gap:12px}
+    .theme-toggle{padding:5px 7px}
+    .theme-toggle .t-light, .theme-toggle .t-dark{display:none !important}
+  }
 
   .theme-toggle{
     -webkit-appearance:none;appearance:none;
@@ -151,6 +159,15 @@
     outline:none;
   }
   .type-shuffle[aria-busy="true"]{cursor:progress}
+  .type-auto{display:inline-flex;align-items:center;gap:6px}
+  .type-auto .pip{
+    width:6px;height:6px;border-radius:50%;
+    border:1px solid currentColor;
+    flex:none;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .type-auto[aria-pressed="true"] .pip{background:var(--accent);border-color:var(--accent)}
+  .type-pending .wordmark svg{visibility:hidden}
 
   .theme-toggle .bulb{
     width:7px;height:7px;border-radius:50%;
@@ -320,6 +337,7 @@
       <span class="rule-right">
         <span class="est">Est. Los Angeles</span>
         <button class="type-shuffle" id="type-shuffle" type="button" title="Set in Helvetica">New type</button>
+        <button class="type-shuffle type-auto" id="type-auto" type="button" aria-pressed="true" title="Autoplay: a new face every 30 seconds"><span class="pip" aria-hidden="true"></span>Auto</button>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">
           <span class="bulb" aria-hidden="true"></span>
           <span class="t-light">Dark</span>
@@ -500,8 +518,8 @@ document.getElementById('yr').textContent = new Date().getFullYear();
 // Wordmark type shuffle: SUPERFRESH dissolves into particles that
 // regather as the same word in another typeface.
 (function(){
-  // set to 20000 to also cycle on its own every 20 seconds
-  var AUTO_MS = 0;
+  // autoplay swaps the face this often, unless the visitor turns it off
+  var AUTO_MS = 30000;
   var DURATION = 2000;
 
   var FONTS = [
@@ -884,15 +902,62 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   // the particles' home positions belong to the old layout
   window.addEventListener('resize', endSim);
 
-  btn.addEventListener('click', function(){
-    if (!busy) morph(pick());
+  // Autoplay: a countdown that restarts after every swap, so a manual
+  // New type never gets followed straight away by an automatic one. It
+  // holds off while the tab is hidden or the pointer is stirring the word.
+  var autoBtn = document.getElementById('type-auto');
+  var auto = !reduceMotion.matches;
+  try{
+    var saved = localStorage.getItem('superfresh-autoplay');
+    if (saved === 'on' || saved === 'off') auto = saved === 'on';
+  }catch(e){}
+  var timer = 0;
+
+  // delay is counted from the end of a swap, so subtract the morph to keep
+  // swaps starting AUTO_MS apart
+  function schedule(delay){
+    clearTimeout(timer);
+    if (auto) timer = setTimeout(tick, delay === undefined ? AUTO_MS - DURATION : delay);
+  }
+  function tick(){
+    if (busy || sim || document.hidden){ timer = setTimeout(tick, 1000); return; }
+    morph(pick()).then(schedule);
+  }
+  function showAuto(){
+    autoBtn.setAttribute('aria-pressed', auto ? 'true' : 'false');
+    autoBtn.title = auto ? 'Autoplay on: a new face every 30 seconds' : 'Autoplay off';
+  }
+
+  autoBtn.addEventListener('click', function(){
+    auto = !auto;
+    try{ localStorage.setItem('superfresh-autoplay', auto ? 'on' : 'off'); }catch(e){}
+    showAuto();
+    schedule(AUTO_MS);
   });
 
-  if (AUTO_MS){
-    setInterval(function(){
-      if (!busy && !document.hidden) morph(pick());
-    }, AUTO_MS);
-  }
+  btn.addEventListener('click', function(){
+    if (!busy) morph(pick()).then(schedule);
+  });
+
+  // open on a random face (the house Helvetica included); give up and
+  // show Helvetica if the face is slow to arrive
+  function reveal(){ document.documentElement.classList.remove('type-pending'); }
+  current = undefined;
+  var first = pick();
+  current = HOUSE;
+  var fallback = setTimeout(reveal, 2500);
+  load(first).then(function(ok){
+    if (ok && document.documentElement.classList.contains('type-pending')){
+      apply(first);
+      current = first;
+    }
+    clearTimeout(fallback);
+    btn.title = 'Set in ' + nameOf(current);
+    reveal();
+  });
+
+  showAuto();
+  schedule(AUTO_MS);
 })();
 </script>
 </body>
